@@ -1,2 +1,234 @@
-# QoR-sampler-selection
-Quality-runtime graph sampling algorithm selection
+# Graph Sampling Quality Prediction
+
+This repository includes the code and data for the **Graph Sampling Quality Prediction**, a machine learning (ML) based method for predicting the quality and performance of different graph sampling algorithms of three categories (node-based, edge-based, and traversal).
+
+This tutorial includes instructions for graph data preparation, processing, sampling, model training, and evaluation, providing model reproducibility. It consists of the following sections:
+1. Model description
+2. Data generation
+3. Graph feature extraction
+4. Graph sampling and evaluation
+5. Mutual information analysis
+6. Feature selection and preparation
+7. Data analysis
+8. Model training
+8. Model testing
+9. Result analysis
+10. ML explainability
+
+## Model description
+### Sampling algorithms
+Our model predicts and recommends graph sampling algorithms of three categories, based on quality and performance metrics. It considers twelve sampling algorithms listed below:
+* Node-based sampling
+   * Random node
+   * Random degree node
+* Edge-based sampling
+   * Random edge
+   * Rendom node-edge
+   * Induced random edge
+* Traversal sampling
+   * Random jump
+   * Metropolis-Hastings random walk
+   * SnowBall
+   * Forest Fire
+   * Frontier
+   * Rank degree
+   * Expansion
+###  Sampling quality metrics
+We consider three quality metrics (distribution divergences) for evaluating sampling algorithms: degree distribution (D3), clustering coefficient distribution (C2D2), hop-plots distribution (HPD2), and hop-plots distribution for the largest connected component (HPDC) divergence.
+### Sampling performance metric
+We consider the execution time of graph sampling algorithms as the performance metric.
+
+### ML models
+Our tool consists of three ML models:
+* Random forest (RF)
+* k nearest neighbor (kNN)
+* Multi-layer perceptron (MLP)
+
+## Data generation
+
+### Dataset details
+
+#### Train synthetic graphs
+We generated five types of synthetic graphs, with the following settings.
+
+**Albert-Barabasi**
+These graphs consist of 64 graphs with 10,000 ~ 100,000 nodes, and densities in [0.00001, 0.001], generated with [Networkx](https://networkx.org/documentation/stable/reference/generated/networkx.generators.random_graphs.barabasi_albert_graph.html).
+We calculate the new edge numbers per node parameter (NewEdgesPerNode) as follows (N: node numbers, D: graph density, m: new edge numbers per node):
+
+$$m = \lfloor(N * D / 2)\rfloor$$
+ 
+- m: 1~42
+	
+**Watts-Strogatz**
+Watts-Strogatz graphs include 119 graphs with 10,000 ~ 100,000 nodes and densities in [0.00001, 0.001], generated with **Networkx**.
+The following equation gives the number of neighbors of each node (|Nei|) in the ring topology, given N and D:
+
+$$|Nei| = \lfloor(D * (N - 1))\rfloor$$
+
+- $$|Nei|$$: 2~98
+  
+**Erdos-Renyi**
+These graphs consist of 173 graphs with 10,000 ~ 100,000 nodes and edge probabilities (densities) in [0.00001, 0.001], generated with **Networkx**.
+
+**PowerLawCluster**
+PowerLawCluster graphs of **Networkx** include 60 graphs with adjusted parameters (new edge numbers per node m and TriangleProb) to produce densities in  [0.00001, 0.001] and average clustering coefficient (CC) in [0.1, 0.6] extracted from real graph properties. 
+
+#Nodes | m | TriangleProb 
+--- | --- | --- 
+10,000 | 2 | 0.2, 0.3, 0.4, 0.5, 0.6
+10,000 | 3 | 0.2, 0.4, 0.6, 0.8, 0.9, 1
+10,000 | 5 | 0.4, 0.6, 0.8, 1
+15,000 | 2 | 0.2, 0.5, 0.7
+15,000 | 5 | 0.3, 0.7, 1
+15,000 | 10 | 0.5, 1
+20,000 | 2 | 0.2, 0.4, 0.6, 0.8
+20,000 | 6 | 0.6, 0.8, 1
+20,000 | 8 | 0.6, 1
+20,000 | 10 | 0.5, 1
+25,000 | 2 | 0.2, 0.4, 0.6, 0.8
+25,000 | 5 | 0.4, 0.8, 1
+25,000 | 15 | 0.7, 1
+30,000 | 2 | 0.2, 0.4, 0.6, 0.8 
+30,000 | 6 | 0.5, 1
+30,000 | 15 | 0.8, 1
+35,000 | 2 | 0.2, 0.4, 0.8
+35,000 | 10 | 0.5, 1
+35,000 | 20 | 0.9, 1
+40,000 | 2 | 0.2, 0.5, 0.8
+40,000 | 5 | 0.3, 0.5, 0.7, 1
+40,000 | 10 | 0.7, 1
+40,000 | 20 | 0.9, 1
+45,000 | 2 | 0.2, 0.6, 0.8
+45,000 | 10 | 0.9, 1
+45,000 | 20 | 1
+
+**Forest-Fire**
+The evolution-based Forest-Fire graphs consist of 36 graphs with 10,000 ~ 100,000 nodes and adjusted forward/backward probabilities to produce densities in [0.00004, 0.001]. We used [Snap-stanford](https://snap.stanford.edu/snappy/doc/reference/GenForestFire.html) library for their generation.
+
+#Nodes | forward/backward probability 
+--- | ---  
+10,000 | 0.1, 0.2, 0.3
+15,000 | 0.1, 0.2, 0.3
+20,000 | 0.1, 0.2, 0.3
+25,000 | 0.01, 0.1, 0.2, 0.3
+30,000 | 0.01, 0.1, 0.2, 0.3
+35,000 | 0.01, 0.1, 0.2, 0.3
+40,000 | 0.01, 0.1, 0.2, 0.3
+45,000 | 0.01, 0.1, 0.2, 0.3
+50,000 | 0.01, 0.2, 0.3
+
+**Stochastic Block Model**
+The clustering based graphs of the stochastic block model consist of 180 graphs with the following characteristics, generated with **Networkx** ($K$: number of clusters, $\alpha$: inter-intra cluster probability ratio):
+
+$$N$$: 5,000, 15,000, 25,000, 35,000, 45,000
+
+$$D$$: 0.0001, 0.0005, 0.0009
+
+$$K$$: 10, 15, 20, 25
+
+$$\alpha$$: 0.01, 0.001, 0.1
+
+We calculated parameters of these graphs (cluster size $$N_c$$, inter cluster density $$\rho'$$ and intra cluster density $$\rho$$) according to the following equations :
+
+$$\rho = (D * (N-1) * K) / (N - K + \alpha * N / (K - 2))$$
+
+$$\rho' = \alpha * \rho$$
+
+$$N_c = \lfloor N/K\rfloor$$
+ 
+
+#### Test synthetic graphs
+We generated 35 testing graphs of three types Albert-Barabasi, Erdos-Renyi, and Watts-Strogatz with 150,000-450,000 nodes and the following parameters:
+
+* Albert-Barabasi with m of 1-22; 
+* Watts-Strogatz with $$|Nei|$$ of 2-44;
+* Erdos-Renyi with edge probabilities in [0.000008,0.0001].
+
+
+
+#### Real graphs
+We also tested our models on 16 publicly available real-world graphs of co-authorship, citation, technology, collaboration, and social graphs.
+
+### Data generation instructions
+To generate synthetic graphs inside folder "data preparation/graph generation" run the following command:
+
+```
+bash run_generate_synthetic_graphs -dataset_num data_folder_number
+```
+
+It generates synthetic graphs with the characteristics definded in dataset_info file of the specified folder number.
+
+## Graph feature extraction
+This script extracts some time-consuming features i.e. node/edge betweenness, eigenvector, pagerank, clustering coefficient, components sizes, maximum spannig tree degrees, shortest path lengths and assortativity with their statistics and distributions.
+### Execution instruction
+The following command to extracts the major features of all graphs in the specified folder:
+
+```
+bash run_parallel_major_feature_extraction_multi_graphs
+```
+
+## Graph sampling and evaluation
+It includes sampling from several graphs and evaluating samples under three quality metrics (degree, clustering coefficent and hop-plots distribution divergences) and execution time. 
+
+### Execution instruction
+The following command collects samples (in parallel) from the graphs in the specified folder with the desired sampling settings such as sampling algorithms and number of iterations:
+
+```
+bash sample_from_several_large_graphs
+```
+Then running this command evaluates samples under quality metrics.
+```
+bash run_parallel_processing_samples_multi_graph
+```
+
+## Mutual information analysis and feature selection
+Mutual information (MI) analysis in notebook *samplings_analysis_MI.ipynb* uses sklearn for selecting the most relevant features for each metric (quality and performance), having MI scores higher than 0.99 with at least one sampling algorithm. 
+Concatenation of these features with sampling features (12 dimensional 1-hot vector for sampling algorithm, 3 dimensions for 1-hot vector of algorithm type and 1 dimention for rate) constitutes the input feature vector for ML models.
+
+
+## Feature normalization
+We normalize all graphs features using maximum and exponential-logarithmic (EL) applied for the following statistics:
+* **Maximum normalization**: minimum, average and medium values
+* **EL normalization**: maximum and variance values, calculation times, and raw features.
+
+The notebook *create_datasets.ipynb* includes the steps for normalization.
+
+## Data analysis
+The notebook *data_analysis.ipynb* includes data analysis steps including duplicate train/test data elimination and visualization of train/test data features using t-SNE.
+
+## Model training
+Model training consists of constructing feature vectors for each sampling metric and training three ML models, RF, MLP and kNN with tuning their hyper-parameters (see notebook *train_models.ipynb*).  
+
+### Hyper-parameter tuning
+We performed five-fold cross validation using GreadSearchCV with following search space for different hyper-parameters of ML models, which results in the following hyper-parameters for each ML model.
+
+Model | Hyperparameter | Search Space | Tuned value (D3/C2D2/HPD2/HPDC)
+--- | ---  | --- | ---
+kNN | algorithm | 'auto', 'ball_tree', 'kd_tree', 'brute' | 'auto', 'ball_tree', 'ball_tree', 'ball_tree'
+kNN | n_neighbors | 4, 5, 10, 15 | 4, 4, 15, 10
+kNN | weights | 'uniform', 'distance' | 'distance', 'distance', 'distance', 'distance'
+RF | bootstrap | True | True
+RF | max_depth | None, 90, 100, 110 | None, None, None, None
+RF | max_features | 2, 3 | 3, 3, 3, 3
+RF | min_samples_leaf | 2, 3, 4, 5 | 2, 2, 2, 2
+RF | min_samples_split | 8, 10, 12 | 8, 8, 8, 8
+RF | n_estimators | 100, 200, 300, 400 | 100, 400, 400, 400
+MLP | activation | 'tanh', 'relu' | 'tanh', 'tanh', 'relu', 'relu'
+MLP | hidden_layer_sizes | (30), (50), (100), (30,30), (50,50), (100,100) | (100,100), (30,30), (100,100), (50,50)
+MLP | solver | 'sgd', 'adam' | 'adam'
+MLP | alpha | 0.0001, 0.05 |  0.0001
+MLP | learning_rate | 'constant', 'adaptive' | 'constant'
+MLP | shuffle | True | True
+MLP | early_stopping | True | True
+
+To run the model training and hyper-parameter tuning use *train_models/train_models.ipynb*.
+
+## Model testing
+The notebook *test_models/test_models.ipynb* tests the trained models on the test set.
+
+## Result analysis
+
+The notebook *result_analysis/result_analysis.ipynb* calculates RMSE of predictions for all metrics and compares top-k ranking accuracy in terms of *Hits@k* of ML models with two baseline methods *random selection* and *k-best selection*. 
+
+## ML explainability
+The notebook *result_analysis/ML-explainability* ranks different input graph and sampling features according to their calculated importance using LIME library. It provides average rankings for each ML model and quality metric. 
